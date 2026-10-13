@@ -10,7 +10,7 @@ import yaml
 import logging
 from datetime import datetime, timedelta
 from odoo.cli import Command
-from odoo import api, SUPERUSER_ID
+from odoo import api, SUPERUSER_ID, sql_db
 from odoo.modules.registry import Registry
 
 _logger = logging.getLogger(__name__)
@@ -98,8 +98,13 @@ Examples:
             'top', help='Show the current message backlog of queues')
         top_parser.add_argument('resource_type', choices=['queue'],
                               help='Resource type to summarise')
+        queue_names = self._queue_names_for_help(args)
         top_parser.add_argument('resource_name', nargs='?',
-                              help='Limit to one queue')
+                              help='Limit to one queue, by name. ' + (
+                                  'Active queues of this database: '
+                                  + ', '.join(n.replace('%', '%%') for n in queue_names)
+                                  if queue_names else
+                                  "'imq-ctl get queue' lists them."))
         top_parser.add_argument('--output', '-o', choices=['table', 'yaml', 'json'],
                               default='table', help='Output format')
 
@@ -217,6 +222,36 @@ Examples:
                 traceback.print_exc()
             return 1
     
+    @staticmethod
+    def _queue_names_for_help(args):
+        """Names of the active queues, read only when help is asked for.
+
+        The parser is built before the registry is loaded, so the names cannot
+        come from the ORM: they come from one raw SELECT on its own connection,
+        run only when -h/--help is on the command line — any other invocation
+        pays nothing. ``active`` is filtered because ``top`` searches through
+        the ORM, which skips an archived queue: the help lists what the
+        command accepts.
+
+        :param args: the raw argument list given to ``run``
+        :returns: the queue names, sorted; an empty list when help is not asked
+                  for, or when the database cannot be read — help never fails
+        """
+        if not {'-h', '--help'} & set(args):
+            return []
+        pre_parser = argparse.ArgumentParser(add_help=False)
+        pre_parser.add_argument('--database', '-d',
+                                default=os.environ.get('PGDATABASE') or None)
+        database = pre_parser.parse_known_args(args)[0].database
+        if not database:
+            return []
+        try:
+            with sql_db.db_connect(database).cursor() as cr:
+                cr.execute("SELECT name FROM imq_queue WHERE active ORDER BY name")
+                return [row[0] for row in cr.fetchall()]
+        except Exception:  # noqa: BLE001 — the help prints without the list
+            return []
+
     def _queue_stats(self, env, queues):
         """Message counts per queue, keyed by queue id.
 
