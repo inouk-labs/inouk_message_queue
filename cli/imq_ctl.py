@@ -93,18 +93,20 @@ Examples:
         subparsers = parser.add_subparsers(dest='verb', help='Available commands')
         subparsers.required = True
         
+        # The queues a queue-only command accepts, shown in its help
+        queue_names = self._queue_names_for_help(args)
+        queue_names_hint = (
+            'Active queues of this database: '
+            + ', '.join(n.replace('%', '%%') for n in queue_names)
+            if queue_names else "'imq-ctl get queue' lists them.")
+
         # Top command — current load, kubectl-style (no mutation, no listing)
         top_parser = subparsers.add_parser(
             'top', help='Show the current message backlog of queues')
         top_parser.add_argument('resource_type', choices=['queue'],
                               help='Resource type to summarise')
-        queue_names = self._queue_names_for_help(args)
         top_parser.add_argument('resource_name', nargs='?',
-                              help='Limit to one queue, by name. ' + (
-                                  'Active queues of this database: '
-                                  + ', '.join(n.replace('%', '%%') for n in queue_names)
-                                  if queue_names else
-                                  "'imq-ctl get queue' lists them."))
+                              help='Limit to one queue, by name. ' + queue_names_hint)
         top_parser.add_argument('--output', '-o', choices=['table', 'yaml', 'json'],
                               default='table', help='Output format')
 
@@ -148,7 +150,8 @@ Examples:
         delete_parser = subparsers.add_parser('delete', help='Delete a resource')
         delete_parser.add_argument('resource_type', choices=['queue'],
                                  help='Resource type to delete')
-        delete_parser.add_argument('resource_name', help='Name of resource to delete')
+        delete_parser.add_argument('resource_name',
+                                 help='Name of the queue to delete. ' + queue_names_hint)
         delete_parser.add_argument('--force', action='store_true',
                                  help='Force deletion without confirmation')
         delete_parser.add_argument('--dry-run', action='store_true',
@@ -229,9 +232,9 @@ Examples:
         The parser is built before the registry is loaded, so the names cannot
         come from the ORM: they come from one raw SELECT on its own connection,
         run only when -h/--help is on the command line — any other invocation
-        pays nothing. ``active`` is filtered because ``top`` searches through
-        the ORM, which skips an archived queue: the help lists what the
-        command accepts.
+        pays nothing. ``active`` is filtered because ``top`` and ``delete``
+        search through the ORM, which skips an archived queue: the help lists
+        what the command accepts.
 
         :param args: the raw argument list given to ``run``
         :returns: the queue names, sorted; an empty list when help is not asked
