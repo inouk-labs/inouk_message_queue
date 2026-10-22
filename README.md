@@ -895,6 +895,12 @@ Returns a list of dicts:
 | `next_poll_seconds` | while `pending`/`wip` | How long to sleep before polling again — present even with no history, so a caller never has to handle its absence |
 | `overdue` | when past p95 | The task has exceeded its typical maximum and may be stuck |
 | `children_summary`, `children` | when the message has children | Per-state counters, and the same shape recursively for each child |
+| `outcome` | when `state` is `failed` | `finished_with_failures`: the task ran to the end and raised `IMQError`; what it did is in place and `failure_message` says what failed and what to do. `stopped`: another exception ended it where it stood |
+| `failure_message` | when `outcome` is `finished_with_failures` | The message of the `IMQError` (cut at 2000 characters; the whole text is in the message's `result`) |
+
+A message that ends in `IMQError` also raises a toast titled *Finished with failures* that shows the error's message
+(escaped, cut at 500 characters); any other exception keeps the title *Processing failed* and shows its class only, never its message.
+`imq.message` and `imq.message_processing` carry the outcome in `ended_with_failures` and `failure_message`.
 
 **`expected` is the payoff of tagging.** A task with no `_imq_stats_category` /
 `_imq_stats_target` gets no estimate and falls back to a fixed poll interval. See
@@ -906,7 +912,7 @@ Returns a list of dicts:
 | `pending` | Task queued. If still pending after 2min, IMQ worker may not be running. |
 | `wip` | Executing. Poll again in 30 seconds. |
 | `done` | Completed. Read the target record for results. |
-| `failed` | Failed. Read `imq.message_processing_log` (filter `message_id=<id>`) for details. **If this task is in a FIFO queue group, subsequent pending tasks in the same group are blocked until this one is archived** — call `archive()` once you have captured the diagnostics. |
+| `failed` | Stopped by an error: read `imq.message_processing_log` (filter `message_id=<id>`) for details; or, when `outcome` is `finished_with_failures`, the task ran to the end (see below). **If this task is in a FIFO queue group, subsequent pending tasks in the same group are blocked until this one is archived** — call `archive()` once you have captured the diagnostics. |
 | `retry` | Will be retried automatically. |
 | `terminated` | Manually terminated. |
 | `cancelled` | Cancelled by user. |

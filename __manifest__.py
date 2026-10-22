@@ -10,7 +10,7 @@
     # (each version converts to MIT two years after its release).
     'license': 'Other proprietary',
     'category': 'Extra Tools',
-    'version': '0.5.0',
+    'version': '0.5.1',
     # inouk_notifications: the queue's Odoo channel is ik_notify and nothing else, so the
     # dependency is declared rather than probed at call time.
     'depends': ['inouk_core', 'mail', 'inouk_notifications'],

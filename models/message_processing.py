@@ -43,6 +43,13 @@ class IMQMessageProcessing(models.Model):
     end_time_microseconds = fields.Integer(readonly=True)
 
     result = fields.Text(readonly=True)
+    ended_with_failures = fields.Boolean(
+        readonly=True,
+        help="Set when this processing ended with an IMQError (the task ran to the end and "
+             "reports what failed).")
+    failure_message = fields.Text(
+        readonly=True,
+        help="The message of the IMQError this processing ended with.")
     log_ids = fields.One2many('imq.message_processing_log', 'processing_id')
     state = fields.Selection(IMQ_MESSAGE_STATES, default='new')
     

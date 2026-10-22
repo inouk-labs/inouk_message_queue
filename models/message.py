@@ -158,6 +158,13 @@ class IMQMessage(models.Model):
     )
 
     result = fields.Text(readonly=True)
+    ended_with_failures = fields.Boolean(
+        readonly=True,
+        help="Set when the last processing ended with an IMQError: the task ran to the end "
+             "and reports what failed, which differs from a task stopped by another exception.")
+    failure_message = fields.Text(
+        readonly=True,
+        help="The message of the IMQError the last processing ended with.")
     operator_comment = fields.Text()
 
     capture_console = fields.Boolean(default=False)
@@ -359,9 +366,20 @@ class IMQMessage(models.Model):
                         est['sample_count'], next_poll)),
         }
 
+    TASK_STATUS_FAILURE_MESSAGE_MAX_CHARS = 2000
+    FIFO_ARCHIVE_HINT = (
+        " If this task is in a FIFO queue group, subsequent "
+        "pending tasks in the same group are blocked until this one is "
+        "archived — call archive() once you have captured the diagnostics."
+    )
+
     @api.model
     def get_task_status(self, message_ids):
         """Get task status with elapsed time and next-step hints.
+
+        A message in state 'failed' also carries ``outcome``: 'finished_with_failures'
+        when the task ran to the end and raised IMQError (``failure_message`` then holds
+        its message), or 'stopped' when another exception ended it.
 
         When a message has child tasks (linked via parent_message_id),
         the response includes children_summary and children fields.
@@ -386,10 +404,8 @@ class IMQMessage(models.Model):
                 'wip': "Executing. Poll again in 30 seconds.",
                 'done': "Completed. Read the target record for results.",
                 'failed': (
-                    "Failed. Read imq.message_processing_log (filter message_id=<id>) "
-                    "for details. If this task is in a FIFO queue group, subsequent "
-                    "pending tasks in the same group are blocked until this one is "
-                    "archived — call archive() once you have captured the diagnostics."
+                    "Stopped by an error. Read imq.message_processing_log (filter message_id=<id>) "
+                    "for details." + self.FIFO_ARCHIVE_HINT
                 ),
                 'terminated': "Manually terminated.",
                 'retry': "Will be retried automatically.",
@@ -402,6 +418,25 @@ class IMQMessage(models.Model):
                 'elapsed_seconds': elapsed,
                 'hint': hints.get(msg.state, f"State: {msg.state}"),
             }
+            if msg.state == 'failed':
+                if msg.ended_with_failures:
+                    entry['outcome'] = 'finished_with_failures'
+                    failure_message = (msg.failure_message or '').strip()
+                    if len(failure_message) > self.TASK_STATUS_FAILURE_MESSAGE_MAX_CHARS:
+                        failure_message = (
+                            failure_message[:self.TASK_STATUS_FAILURE_MESSAGE_MAX_CHARS]
+                            + " ... (truncated; the full text is in the message result)")
+                    entry['failure_message'] = failure_message
+                    entry['hint'] = (
+                        "Finished with failures: the task ran to the end; what it did before and "
+                        "around the failure is in place, and failure_message says what failed and "
+                        "what to do. Do not deprovision or recreate the App Server on this signal "
+                        "alone: fix the cause, then launch the task again. Details: "
+                        "imq.message.result (filter id=<id>)."
+                        + self.FIFO_ARCHIVE_HINT
+                    )
+                else:
+                    entry['outcome'] = 'stopped'
 
             # Duration hint from history (same category+target bucket). Lets an
             # MCP agent set expectations and compute an ETA. Absent when the task

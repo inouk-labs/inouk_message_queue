@@ -26,8 +26,29 @@ _logger = logging.getLogger(__name__)
 TLS = threading.local()
 
 
+# Longest text of the message of an IMQError shown in a toast; the message keeps the whole text.
+IMQ_TOAST_MAX_CHARS = 500
+
+
 class BaseWorker:
     """Base worker functionality extracted from imq.worker model"""
+
+    @staticmethod
+    def imq_error_toast_text(imq_err):
+        """Text of the toast of a message that finished with an IMQError.
+
+        The message of an IMQError says what is in place, what failed and what to do
+        (STD-65). It is returned as a plain ``str``: the toast body escapes it, since it
+        carries names written by third parties (a ``Markup`` would render them as HTML).
+        Cut at ``IMQ_TOAST_MAX_CHARS``, with a pointer to the message; an empty one
+        becomes a pointer to the message.
+        """
+        text = str(imq_err).strip()
+        if not text:
+            return "See the message for the details."
+        if len(text) > IMQ_TOAST_MAX_CHARS:
+            text = text[:IMQ_TOAST_MAX_CHARS].rstrip() + " ... (see the message for the full text)"
+        return text
     
     def __init__(self):
         self.logger = _logger
@@ -160,6 +181,8 @@ class BaseWorker:
         retry_delay_s = None
         returned_value = None
         state = 'failed'
+        ended_with_failures = False
+        failure_message = False
 
         # Create dedicated cursor and environment for execution
         run_cursor = env.registry.cursor()
@@ -286,6 +309,8 @@ class BaseWorker:
                 returned_value += "\n" + "-" * 80 + "\n" + results
 
                 state = 'failed'
+                ended_with_failures = True
+                failure_message = str(imq_err)
                 self.terminate_message(env, queue_obj, message)
                 
                 self.logger.info("Deleted %s on queue '%s' (IMQError)", 
@@ -298,8 +323,8 @@ class BaseWorker:
                 if msg_processor_obj.notify_message_processing_fail:
                     message_obj.queue_id.send_notification(
                         'danger',
-                        "Processing failed!",
-                        "*IMQError* has been raised.",
+                        "Finished with failures",
+                        self.imq_error_toast_text(imq_err),
                         icon=":x:",
                         message_obj=message_obj
                     )
@@ -408,7 +433,7 @@ class BaseWorker:
                     message_obj.queue_id.send_notification(
                         'danger',
                         "Processing failed",
-                        f"*{repr(exc)}* has been raised.",
+                        f"*{type(exc).__name__}* has been raised.",
                         icon=":x:",
                         message_obj=message_obj
                     )
@@ -440,7 +465,9 @@ class BaseWorker:
         # Build response
         response = {
             'result': result,
-            'state': state
+            'state': state,
+            'ended_with_failures': ended_with_failures,
+            'failure_message': failure_message,
         }
         if retry_delay_s:
             response['planned_time'] = fields.Datetime.to_string(
