@@ -946,6 +946,8 @@ class StandaloneWorker(BaseWorker):
                     if 'message_obj' in locals() and message_obj:
                         message_obj.write({
                             'state': 'failed',
+                            'ended_with_failures': False,
+                            'failure_message': False,
                             'result': str(e),
                             'end_time': datetime.datetime.now()
                         })

@@ -79,7 +79,9 @@ class IMQMessageSQS(models.Model):
             ) + queue_message_id_history
             update_dict = {
                 'queue_message_id_history': queue_message_id_history,
-                'state': 'retry'
+                'state': 'retry',
+                'ended_with_failures': False,
+                'failure_message': False,
             }
             if response:
                 update_dict['queue_message_id'] = response['MessageId']

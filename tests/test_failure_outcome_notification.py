@@ -8,8 +8,8 @@ operations that leave the transaction are replaced: ``terminate_message`` and
 
   - IMQError: title "Finished with failures", the error's message, cut and escaped; the
     outcome recorded in the response (``ended_with_failures``, ``failure_message``);
-  - another exception: the title it always had and its class only, never its message; no outcome;
-  - IMQRetryableError once the attempts are exhausted: unchanged.
+  - another exception: title 'Processing failed', its class only, never its message; no outcome;
+  - IMQRetryableError once the attempts are exhausted: title 'Retryable processing failed'; no outcome.
 """
 
 import logging
@@ -121,7 +121,7 @@ class TestFailureOutcomeNotification(TransactionCase):
         self.assertEqual(calls[0].args[2], "See the message for the details.")
         self.assertTrue(response['ended_with_failures'])
 
-    def test_other_exception_is_unchanged(self):
+    def test_other_exception_shows_title_and_class_only(self):
         response, calls, message = self._run('_raise_value_error')
         self.assertEqual(response['state'], 'failed')
         self.assertFalse(response['ended_with_failures'])
@@ -136,7 +136,7 @@ class TestFailureOutcomeNotification(TransactionCase):
             self.assertNotIn("s3cr3t-token-value", str(arg))
         self.assertEqual(calls[0].args[2], "*RuntimeError* has been raised.")
 
-    def test_retryable_error_after_the_last_attempt_is_unchanged(self):
+    def test_retryable_error_after_the_last_attempt_has_no_outcome(self):
         response, calls, message = self._run('_raise_retryable', attempt=4, max_attempts=4)
         self.assertEqual(response['state'], 'failed')
         self.assertFalse(response['ended_with_failures'])

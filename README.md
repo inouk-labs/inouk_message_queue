@@ -810,7 +810,8 @@ success/info traffic stays with whoever asked for it.
 
 **What it says** (`_build_notification_body`): the message name on the first
 line, and the worker's own text below it — the duration on success, the
-exception class on failure. Name a message well and the toast reads well:
+exception class on failure; for an `IMQError`, the title *Finished with failures*
+and the error's message, escaped and cut at 500 characters. Name a message well and the toast reads well:
 
 ```
 Processing done without error
@@ -912,7 +913,7 @@ A message that ends in `IMQError` also raises a toast titled *Finished with fail
 | `pending` | Task queued. If still pending after 2min, IMQ worker may not be running. |
 | `wip` | Executing. Poll again in 30 seconds. |
 | `done` | Completed. Read the target record for results. |
-| `failed` | Stopped by an error: read `imq.message_processing_log` (filter `message_id=<id>`) for details; or, when `outcome` is `finished_with_failures`, the task ran to the end (see below). **If this task is in a FIFO queue group, subsequent pending tasks in the same group are blocked until this one is archived** — call `archive()` once you have captured the diagnostics. |
+| `failed` | Stopped by an error: read `imq.message_processing_log` (filter `message_id=<id>`) for details; or, when `outcome` is `finished_with_failures`, the task ran to the end (see `outcome` above). **If this task is in a FIFO queue group, subsequent pending tasks in the same group are blocked until this one is archived** — call `archive()` once you have captured the diagnostics. |
 | `retry` | Will be retried automatically. |
 | `terminated` | Manually terminated. |
 | `cancelled` | Cancelled by user. |

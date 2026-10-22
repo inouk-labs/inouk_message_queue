@@ -81,7 +81,8 @@ WHERE id = (
 
 PGSQL_RESET_MESSAGE_SQL_std = """
 UPDATE imq_message
-SET state = 'pending', start_time = NULL
+SET state = 'pending', start_time = NULL,
+    ended_with_failures = FALSE, failure_message = NULL
 WHERE id = %s;
 """
 
@@ -89,7 +90,9 @@ WHERE id = %s;
 PGSQL_RESET_VISIBLITY_TIMEOUT_SQL = """
 UPDATE imq_message
 SET state=CASE WHEN attempt < max_number_of_attempts THEN 'pending' ELSE 'failed' END,
-    visibility_time=NULL
+    visibility_time=NULL,
+    ended_with_failures=FALSE,
+    failure_message=NULL
 WHERE
     state='wip'
 AND visibility_time <= NOW() AT TIME ZONE 'utc';

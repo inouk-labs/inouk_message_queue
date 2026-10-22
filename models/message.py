@@ -430,8 +430,8 @@ class IMQMessage(models.Model):
                     entry['hint'] = (
                         "Finished with failures: the task ran to the end; what it did before and "
                         "around the failure is in place, and failure_message says what failed and "
-                        "what to do. Do not deprovision or recreate the App Server on this signal "
-                        "alone: fix the cause, then launch the task again. Details: "
+                        "what to do. Do not destroy or recreate what the task worked on on this "
+                        "signal alone: fix the cause, then launch the task again. Details: "
                         "imq.message.result (filter id=<id>)."
                         + self.FIFO_ARCHIVE_HINT
                     )
