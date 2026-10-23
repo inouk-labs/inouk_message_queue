@@ -19,6 +19,7 @@ import boto3
 import pymsteams
 
 from ..api import send_message
+from .notification_text import escape_slack, slack_text
 
 _logger = logging.getLogger('IMQ.queue')
 
@@ -80,9 +81,15 @@ class IMQQueueSlack(models.Model):
     def send_slack_notification(
         self, message_type, message_title, message, icon=None, message_obj=None
     ):
-        """ Send message to slack channels of all queues in record set """
-        _msg = "\n%s" % message if message else ''
-        notification_text = f"*{message_title}*{_msg}"
+        """ Send message to slack channels of all queues in record set.
+
+        ``message`` and ``message_title`` follow the rule of the Odoo toast: a ``str`` is
+        text, escaped for Slack (``&``, ``<``, ``>``), so a name cannot mention ``<!channel>``;
+        a ``Markup`` is HTML the caller means, converted to Slack's formatting.
+        The message name is text too.
+        """
+        _msg = "\n%s" % slack_text(message) if message else ''
+        notification_text = f"*{slack_text(message_title)}*{_msg}"
 
         if icon:
             notification_text = f"{icon} {notification_text}"
@@ -91,7 +98,7 @@ class IMQQueueSlack(models.Model):
             if record.slack_webhook_url:
 
                 if message_obj:
-                    notification_text += "\nMessage: *<%s|%s>*" % (message_obj.get_form_url(), message_obj.name,)
+                    notification_text += "\nMessage: *<%s|%s>*" % (message_obj.get_form_url(), escape_slack(message_obj.name or ""),)
                 payload = { "text": notification_text }
                     
                 headers = {'Content-type': 'application/json'}

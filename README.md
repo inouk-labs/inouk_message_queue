@@ -826,6 +826,14 @@ through `markupsafe.Markup` — the message name is escaped and cannot inject HT
 Slack and Teams have no notion of a target user and are unaffected by the
 routing above.
 
+Slack and Teams follow the same rule for the text: `send_notification()` takes a
+`str` as text and a `markupsafe.Markup` as the markup the caller means. A `str` is
+escaped for each channel: Slack's `&`, `<` and `>` (so a name cannot write
+`<!channel>`; `*bold*` and `_italic_` keep their effect), HTML for Teams. A `Markup`
+reaches the toast and Teams as HTML; for Slack its simple tags (`<b>`, `<i>`, `<code>`,
+`<a>`, `<br/>`) are converted to Slack's formatting and the others are dropped. The message
+name is text on every channel.
+
 ## Monitoring
 
 ### Message States

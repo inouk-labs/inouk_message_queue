@@ -14,5 +14,6 @@ from . import test_notification_routing
 from . import test_registry_signaling
 from . import test_failure_outcome_notification
 from . import test_task_status_outcome
+from . import test_slack_teams_escaping
 
 __all__ = ['run_phase1_tests']

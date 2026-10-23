@@ -19,6 +19,7 @@ import boto3
 import pymsteams
 
 from ..api import send_message
+from .notification_text import teams_html
 
 _logger = logging.getLogger('IMQ.queue')
 
@@ -68,7 +69,7 @@ class TeamsIMQQueue(models.Model):
             if icon_url:
                 myMessageSection.activityImage(icon_url)
             if message:
-                myMessageSection.activityTitle(message)
+                myMessageSection.activityTitle(str(message))
             if facts:
                 for key in facts:
                     # Facts are key value pairs displayed in a list.
@@ -121,7 +122,10 @@ class TeamsIMQQueue(models.Model):
     ):
         """ Send message to teams channels of all queues in record set 
         :param message_type: defines the 
+        :param message: a ``str`` is text and is HTML-escaped; a ``Markup`` is HTML the
+            caller means and goes through as it is (the rule of the Odoo toast).
         """
+        message = teams_html(message) if message else message
         for record in self:
             if record.use_msteams_notifications and record.msteams_webhookurl:
                 if icon:
