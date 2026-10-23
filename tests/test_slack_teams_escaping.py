@@ -125,6 +125,25 @@ class TestSlackTeamsEscaping(TransactionCase):
         self.assertEqual(str(self._teams('info', "T", "", message_obj=self.message)),
                          "Create &lt;i&gt;DB&lt;/i&gt; &amp; &lt;!here&gt;<br/>")
 
+    def test_teams_title_and_summary_are_escaped(self):
+        card = MagicMock()
+        with patch.object(pymsteams, 'connectorcard', return_value=card):
+            self.queue.send_teams_message("<b>x</b> & y", message="m")
+        card.title.assert_called_once_with("&lt;b&gt;x&lt;/b&gt; &amp; y")
+        card.summary.assert_called_once_with("&lt;b&gt;x&lt;/b&gt; &amp; y")
+
+    def test_teams_markup_title_is_html_and_caller_titles_are_unchanged(self):
+        card = MagicMock()
+        with patch.object(pymsteams, 'connectorcard', return_value=card):
+            self.queue.send_teams_message(Markup("<b>x</b>"), message="m")
+        card.title.assert_called_once_with("<b>x</b>")
+        for title, _msg in CALLER_TEXTS + [("PostgreSQL Cluster 'pg-main' replication lag", "")]:
+            card = MagicMock()
+            with patch.object(pymsteams, 'connectorcard', return_value=card):
+                self.queue.send_teams_message(title, message="m")
+            card.title.assert_called_once_with(title)
+            card.summary.assert_called_once_with(title)
+
     # Failures land in the task's journal
     def test_failed_posts_are_logged_to_the_task_logger(self):
         task_logger = MagicMock()

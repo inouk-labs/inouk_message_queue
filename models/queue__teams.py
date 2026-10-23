@@ -62,6 +62,8 @@ class TeamsIMQQueue(models.Model):
             https_proxy=self.msteams_https_proxy or None
         )
         myTeamsMessage.color("0072C6")
+        # Same rule as the body: a str is text and is escaped, a Markup is HTML.
+        title = str(teams_html(title)) if title is not None else title
         myTeamsMessage.summary(title)
         myTeamsMessage.title(title)
 
