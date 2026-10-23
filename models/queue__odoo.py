@@ -187,11 +187,6 @@ class IMQOdooQueue(models.Model):
                             sticky=True if (message_type == 'danger' or sticky) else False,
                             action_button=action_button,
                         )
-                    except AttributeError:
-                        _logger.error(
-                            "Failed to call res.users::ik_notify(). "
-                            "Is Addon inouk_notifications installed?"
-                        )
                     except Exception as e:
                         _logger.error("Failed to notify user %s: %s", user.login, e)
 

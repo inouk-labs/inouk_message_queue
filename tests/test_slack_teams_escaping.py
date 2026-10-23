@@ -6,12 +6,15 @@ The HTTP sending is simulated: Slack's ``requests.post`` and Teams' ``send_teams
 (and, for the card itself, ``pymsteams.connectorcard``).
 """
 import json
+import logging
 from unittest.mock import MagicMock, patch
 
 import pymsteams
 from markupsafe import Markup
 
 from odoo.tests.common import TransactionCase, tagged
+
+_logger = logging.getLogger(__name__)
 
 NASTY = "<b>x</b> <!channel> & more"
 
@@ -122,11 +125,20 @@ class TestSlackTeamsEscaping(TransactionCase):
         self.assertEqual(str(self._teams('info', "T", "", message_obj=self.message)),
                          "Create &lt;i&gt;DB&lt;/i&gt; &amp; &lt;!here&gt;<br/>")
 
+    # Failures land in the task's journal
+    def test_failed_posts_are_logged_to_the_task_logger(self):
+        task_logger = MagicMock()
+        with patch('odoo.addons.inouk_message_queue.models.queue__slack.requests.post', side_effect=OSError("boom")), \
+                patch.object(pymsteams, 'connectorcard', return_value=MagicMock(send=MagicMock(side_effect=OSError("boom")))):
+            self.queue.send_notification('info', "T", "m", _imq_logger=task_logger)
+        errors = [c.args[0] for c in task_logger.error.call_args_list]
+        self.assertTrue(any("slack" in e for e in errors), errors)
+        self.assertTrue(any("Teams" in e for e in errors), errors)
+
     # Callers: same body as before
     def test_callers_send_the_same_body_as_before(self):
         plain = self.env['imq.message'].create({
             'name': "Backup db1", 'queue_id': self.queue.id, 'user_id': self.env.user.id})
-        rows = []
         for title, msg in CALLER_TEXTS:
             before_slack = f"*{title}*\n{msg}"
             after_slack = self._slack(title, msg)
@@ -136,7 +148,4 @@ class TestSlackTeamsEscaping(TransactionCase):
             self.assertEqual(after_teams, before_teams, title)
             # no message_obj: the text alone
             self.assertEqual(str(self._teams('info', title, msg)), msg, title)
-            rows.append((title, after_slack, after_teams))
-        # printed once for the report
-        for title, s, t in rows:
-            print("L13 BEFORE=AFTER | Slack: %r | Teams: %r" % (s, t))
+            _logger.debug("L13 BEFORE=AFTER | Slack: %r | Teams: %r", after_slack, after_teams)

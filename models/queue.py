@@ -200,7 +200,9 @@ class IMQQueue(models.Model):
         result_str = json.dumps(result, sort_keys=True, indent=4)
         self.test_result = result_str
 
-    def send_notification(self, message_type, message_title, message, icon=None, message_obj=None):
+    def send_notification(
+        self, message_type, message_title, message, icon=None, message_obj=None, _imq_logger=None
+    ):
         """Send message to all 'channels' (odoo, slack, teams) of all queues in recordset.
 
         :param message_type: "danger", "warning", "success" or "info".
@@ -223,11 +225,15 @@ class IMQQueue(models.Model):
             # See imq.queue._resolve_notification_recipients().
             user_obj=None,
         )
-        self.send_slack_notification(message_type, message_title, message, icon=icon, message_obj=message_obj)
+        self.send_slack_notification(
+            message_type, message_title, message, icon=icon, message_obj=message_obj, _imq_logger=_imq_logger
+        )
 
         if message_obj:
             message = teams_html(message_obj.name) + Markup('<br/>') + teams_html(message)
-        self.send_teams_notification(message_type, message_title, message, icon=icon, message_obj=message_obj)
+        self.send_teams_notification(
+            message_type, message_title, message, icon=icon, message_obj=message_obj, _imq_logger=_imq_logger
+        )
 
     def aws_sqs__create_queue(self):
         self.ensure_one()
