@@ -1,5 +1,11 @@
 # Inouk Message Queue (IMQ)
 
+> **This repository is maintained on GitLab:** <https://gitlab.com/cmorisse/inouk_message_queue>
+>
+> <https://github.com/inouk-labs/inouk_message_queue> is a read-only mirror, updated from GitLab on
+> every push to a release branch. A commit pushed to GitHub is overwritten by the next update:
+> open issues and merge requests on GitLab.
+
 **The production-ready task queue system built for Odoo developers who need reliable asynchronous processing.**
 
 Turn an Odoo model method into an async task with a single decorator. Get enterprise-grade task processing with exactly-once delivery, automatic retries, comprehensive logging, and transparent scaling from PostgreSQL to AWS SQS.
