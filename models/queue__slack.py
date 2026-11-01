@@ -19,6 +19,7 @@ import boto3
 import pymsteams
 
 from ..api import send_message
+from .notification_text import escape_slack, slack_text
 
 _logger = logging.getLogger('IMQ.queue')
 
@@ -78,11 +79,18 @@ class IMQQueueSlack(models.Model):
         return r_message
 
     def send_slack_notification(
-        self, message_type, message_title, message, icon=None, message_obj=None
+        self, message_type, message_title, message, icon=None, message_obj=None, _imq_logger=None
     ):
-        """ Send message to slack channels of all queues in record set """
-        _msg = "\n%s" % message if message else ''
-        notification_text = f"*{message_title}*{_msg}"
+        """ Send message to slack channels of all queues in record set.
+
+        ``message`` and ``message_title`` follow the rule of the Odoo toast: a ``str`` is
+        text, escaped for Slack (``&``, ``<``, ``>``), so a name cannot mention ``<!channel>``;
+        a ``Markup`` is HTML the caller means, converted to Slack's formatting.
+        The message name is text too.
+        """
+        _task_logger = _imq_logger or _logger
+        _msg = "\n%s" % slack_text(message) if message else ''
+        notification_text = f"*{slack_text(message_title)}*{_msg}"
 
         if icon:
             notification_text = f"{icon} {notification_text}"
@@ -91,7 +99,7 @@ class IMQQueueSlack(models.Model):
             if record.slack_webhook_url:
 
                 if message_obj:
-                    notification_text += "\nMessage: *<%s|%s>*" % (message_obj.get_form_url(), message_obj.name,)
+                    notification_text += "\nMessage: *<%s|%s>*" % (message_obj.get_form_url(), escape_slack(message_obj.name or ""),)
                 payload = { "text": notification_text }
                     
                 headers = {'Content-type': 'application/json'}
@@ -99,18 +107,18 @@ class IMQQueueSlack(models.Model):
                     result = requests.post(record.slack_webhook_url, 
                                         data=json.dumps(payload), 
                                         headers=headers)
-                    _logger.debug("requests.post(%s, data=%s, headers=%s) => %s", 
+                    _task_logger.debug("requests.post(%s, data=%s, headers=%s) => %s", 
                         record.slack_webhook_url, 
                         json.dumps(payload), 
                         headers, 
                         result
                     )
-                    _logger.info("result.text => %s", result.text)
+                    _task_logger.info("result.text => %s", result.text)
                 except:
                     exc_type, exc_value, exc_traceback = exc_info = sys.exc_info()
-                    _logger.error("Failed to send slack notification !!!!!")
+                    _task_logger.error("Failed to send slack notification !!!!!")
                     exc_message = traceback.format_exception(exc_type, 
                                                             exc_value, 
                                                             exc_traceback)
                     result_output = "\n".join(exc_message)
-                    _logger.error(result_output)
+                    _task_logger.error(result_output)

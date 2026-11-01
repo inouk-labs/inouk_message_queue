@@ -37,6 +37,8 @@ class IMQMessagePGSQL(models.Model):
                 'queue_message_id_history': queue_message_id_history,
                 'state': 'retry',
                 'result': None,
+                'ended_with_failures': False,
+                'failure_message': False,
                 'max_number_of_attempts': record.max_number_of_attempts + 1
             } 
             record.write(update_dict)

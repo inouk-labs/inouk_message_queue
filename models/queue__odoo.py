@@ -148,8 +148,8 @@ class IMQOdooQueue(models.Model):
 
         :param message_type: "danger", "warning", "success" or "info".
         :param message_title: The title of the notification.
-        :param message: The message text (slack markdown format). Rendered below
-            the message name — this is where the processing duration and the
+        :param message: The message text: a ``str`` is text (it may carry Slack-style
+            ``*bold*``), a ``Markup`` is HTML. Rendered below the message name — this is where the processing duration and the
             exception class end up.
         :param icon: DEPRECATED - Ignored in Odoo 18.
         :param message_obj: Optional IMQ message object. Provides the button
@@ -186,11 +186,6 @@ class IMQOdooQueue(models.Model):
                             body_html,
                             sticky=True if (message_type == 'danger' or sticky) else False,
                             action_button=action_button,
-                        )
-                    except AttributeError:
-                        _logger.error(
-                            "Failed to call res.users::ik_notify(). "
-                            "Is Addon inouk_notifications installed?"
                         )
                     except Exception as e:
                         _logger.error("Failed to notify user %s: %s", user.login, e)

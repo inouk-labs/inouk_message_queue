@@ -15,7 +15,10 @@ from odoo.tools.safe_eval import safe_eval
 
 import boto3
 
+from markupsafe import Markup
+
 from ..api import send_message
+from .notification_text import teams_html
 
 _logger = logging.getLogger('IMQ.queue')
 
@@ -197,13 +200,18 @@ class IMQQueue(models.Model):
         result_str = json.dumps(result, sort_keys=True, indent=4)
         self.test_result = result_str
 
-    def send_notification(self, message_type, message_title, message, icon=None, message_obj=None):
+    def send_notification(
+        self, message_type, message_title, message, icon=None, message_obj=None, _imq_logger=None
+    ):
         """Send message to all 'channels' (odoo, slack, teams) of all queues in recordset.
 
         :param message_type: "danger", "warning", "success" or "info".
             This defines the overall aspect of the notification.
         :param message_title: The title of the notification
-        :param message: The message text. HTML content is supported.
+        :param message: The message text. A ``str`` is text: every channel escapes it
+            (the Odoo toast, Slack's ``&``, ``<``, ``>``, Teams' HTML). A
+            ``markupsafe.Markup`` is HTML the caller means: the toast and Teams show it
+            as HTML, Slack gets its simple tags converted to its formatting.
         :param icon: DEPRECATED - Ignored in Odoo 18.
         """
         self.send_odoo_notification(
@@ -217,11 +225,15 @@ class IMQQueue(models.Model):
             # See imq.queue._resolve_notification_recipients().
             user_obj=None,
         )
-        self.send_slack_notification(message_type, message_title, message, icon=icon, message_obj=message_obj)
+        self.send_slack_notification(
+            message_type, message_title, message, icon=icon, message_obj=message_obj, _imq_logger=_imq_logger
+        )
 
         if message_obj:
-            message = "%s<br/>%s" % (message_obj.name, message,)
-        self.send_teams_notification(message_type, message_title, message, icon=icon, message_obj=message_obj)
+            message = teams_html(message_obj.name) + Markup('<br/>') + teams_html(message)
+        self.send_teams_notification(
+            message_type, message_title, message, icon=icon, message_obj=message_obj, _imq_logger=_imq_logger
+        )
 
     def aws_sqs__create_queue(self):
         self.ensure_one()

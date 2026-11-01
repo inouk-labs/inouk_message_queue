@@ -24,6 +24,7 @@ from odoo.api import Environment
 from odoo.exceptions import MissingError, UserError
 #from odoo.addons.inouk_message_queue.api import unwrap_odoo_model
 from ..api import unwrap_odoo_model, IMQError, IMQRetryableError, IMQTerminateException
+from ..workers.base import BaseWorker
 from .message_processor import MAX_ATTEMPTS
 
 
@@ -120,6 +121,8 @@ class IMQWorker(models.AbstractModel):
         start_timestamp = datetime.datetime.now()
         raised = None
         retry_delay_s = None
+        ended_with_failures = False
+        failure_message = False
 
         try:
             # create a new environment dedicated to function execution
@@ -253,6 +256,8 @@ class IMQWorker(models.AbstractModel):
             returned_value += "\n" + "-" * 80 + "\n" + results     
             
             state = 'failed'
+            ended_with_failures = True
+            failure_message = str(imq_err)
             self.terminate_message(queue_obj, message)
 
             _logger.info(
@@ -267,8 +272,8 @@ class IMQWorker(models.AbstractModel):
             if msg_processor_obj.notify_message_processing_fail:
                 message_obj.queue_id.send_notification(
                     'danger',
-                    "Processing failed!",
-                    "*IMQError* has been raised.",
+                    "Finished with failures",
+                    BaseWorker.imq_error_toast_text(imq_err),
                     icon=":x:",
                     message_obj=message_obj
                 )
@@ -379,7 +384,7 @@ class IMQWorker(models.AbstractModel):
                 message_obj.queue_id.send_notification(
                     'danger',
                     "Processing failed",
-                    "*%s* has been raised." % repr(exc_value),
+                    "*%s* has been raised." % type(exc_value).__name__,
                     icon=":x:",
                     message_obj=message_obj
                 )
@@ -407,7 +412,9 @@ class IMQWorker(models.AbstractModel):
 
         _r = {
             'result': result,
-            'state': state
+            'state': state,
+            'ended_with_failures': ended_with_failures,
+            'failure_message': failure_message,
         }
         if retry_delay_s:
             _r['planned_time'] = fields.Datetime.to_string(datetime.datetime.now() + datetime.timedelta(seconds=retry_delay_s))
@@ -523,7 +530,9 @@ class IMQWorker(models.AbstractModel):
             else:
                 result_dict = {
                     'state': 'failed',
-                    'result': "No processor defined for message. Will retry in a few seconds."
+                    'result': "No processor defined for message. Will retry in a few seconds.",
+                    'ended_with_failures': False,
+                    'failure_message': False,
                 }
 
             end_timestamp = datetime.datetime.now()

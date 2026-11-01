@@ -19,6 +19,7 @@ import boto3
 import pymsteams
 
 from ..api import send_message
+from .notification_text import teams_html
 
 _logger = logging.getLogger('IMQ.queue')
 
@@ -50,8 +51,10 @@ class TeamsIMQQueue(models.Model):
         return url_str
 
     def send_teams_message(
-        self, title:str, message:str=None, icon_url:str=None, obj_url:str=None, facts:dict=None
+        self, title:str, message:str=None, icon_url:str=None, obj_url:str=None, facts:dict=None,
+        _imq_logger=None
     ):
+        _task_logger = _imq_logger or _logger
         # We set timeout to 500ms
         myTeamsMessage = pymsteams.connectorcard(
             self.msteams_webhookurl, 
@@ -59,6 +62,8 @@ class TeamsIMQQueue(models.Model):
             https_proxy=self.msteams_https_proxy or None
         )
         myTeamsMessage.color("0072C6")
+        # Same rule as the body: a str is text and is escaped, a Markup is HTML.
+        title = str(teams_html(title)) if title is not None else title
         myTeamsMessage.summary(title)
         myTeamsMessage.title(title)
 
@@ -68,7 +73,7 @@ class TeamsIMQQueue(models.Model):
             if icon_url:
                 myMessageSection.activityImage(icon_url)
             if message:
-                myMessageSection.activityTitle(message)
+                myMessageSection.activityTitle(str(message))
             if facts:
                 for key in facts:
                     # Facts are key value pairs displayed in a list.
@@ -89,8 +94,8 @@ class TeamsIMQQueue(models.Model):
                                                         exc_value, 
                                                         exc_traceback)
             returned_value = "\n".join(returned_value)
-            _logger.error("Failed to send notification to Teams.")
-            _logger.error(returned_value)
+            _task_logger.error("Failed to send notification to Teams.")
+            _task_logger.error(returned_value)
         return
 
     def render_icon__teams(self, icon:str):
@@ -117,11 +122,15 @@ class TeamsIMQQueue(models.Model):
         return _icon_url
 
     def send_teams_notification(
-        self, message_type, message_title, message, icon=None, message_obj=None, facts=None
+        self, message_type, message_title, message, icon=None, message_obj=None, facts=None,
+        _imq_logger=None
     ):
         """ Send message to teams channels of all queues in record set 
         :param message_type: defines the 
+        :param message: a ``str`` is text and is HTML-escaped; a ``Markup`` is HTML the
+            caller means and goes through as it is (the rule of the Odoo toast).
         """
+        message = teams_html(message) if message else message
         for record in self:
             if record.use_msteams_notifications and record.msteams_webhookurl:
                 if icon:
@@ -135,7 +144,8 @@ class TeamsIMQQueue(models.Model):
                     message=message, 
                     icon_url=icon_url, 
                     obj_url=obj_url, 
-                    facts=facts
+                    facts=facts,
+                    _imq_logger=_imq_logger
                 )
 
     def btn_test_msteams_notifications(self):
